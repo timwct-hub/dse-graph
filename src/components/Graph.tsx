@@ -155,12 +155,12 @@ export default function Graph({ type, params, savedGraphs = [] }: Props) {
       </svg>
       
       {/* Equation Display Overlay */}
-      <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-4 py-2 rounded-lg shadow-sm border border-gray-200">
+      <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-white/90 backdrop-blur px-2 py-1 md:px-4 md:py-2 rounded-lg shadow-sm border border-gray-200 scale-75 md:scale-100 origin-top-left">
         <EquationDisplay type={type} params={params} />
       </div>
       
       {/* Legend */}
-      <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur px-3 py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col gap-1 text-xs">
+      <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4 bg-white/90 backdrop-blur px-2 py-1 md:px-3 md:py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col gap-1 text-[10px] md:text-xs">
         <div className="flex items-center gap-2">
           <div className="w-4 h-0.5 bg-slate-300 border-t-2 border-dashed border-slate-300"></div>
           <span className="text-slate-600">Base 原始圖表</span>
