@@ -28,9 +28,14 @@ jobs:
         run: npm run build
         env:
           NODE_ENV: production
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
       
-      - name: List dist contents (debug)
-        run: ls -la dist/
+      - name: List build output
+        run: |
+          echo "=== Dist folder contents ==="
+          ls -la dist/
+          echo "=== Index.html content ==="
+          cat dist/index.html
       
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
