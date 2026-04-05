@@ -37,7 +37,7 @@ export default function Controls({ type, params, onChange, savedGraphs, onAddSav
           let val = parseFloat(e.target.value);
           update(paramKey, val);
         }}
-        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+        className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 touch-none"
       />
     </div>
   );
@@ -92,6 +92,8 @@ export default function Controls({ type, params, onChange, savedGraphs, onAddSav
           <Slider label="a" paramKey="a" min={-10} max={10} step={0.1} descEn="Opening & Width" descZh="開口方向與闊度" />
           <Slider label="h" paramKey="h" min={-10} max={10} step={0.1} descEn="Vertex x" descZh="頂點 x" />
           <Slider label="k" paramKey="k" min={-10} max={10} step={0.1} descEn="Vertex y" descZh="頂點 y" />
+          <Toggle label="-f(x)" paramKey="reflectX" descEn="Reflect in x-axis" descZh="沿 x-軸反射" />
+          <Toggle label="f(-x)" paramKey="reflectY" descEn="Reflect in y-axis" descZh="沿 y-軸反射" />
         </>
       )}
 
@@ -115,7 +117,7 @@ export default function Controls({ type, params, onChange, savedGraphs, onAddSav
         <>
           <Slider label="a" paramKey="a" min={-10} max={10} step={0.1} descEn="Amplitude" descZh="振幅" />
           <Slider label="b" paramKey="b" min={-10} max={10} step={0.1} descEn="Period mod" descZh="週期改變" />
-          <Slider label="h" paramKey="h" min={-10} max={10} step={0.1} descEn="Phase Shift" descZh="相位移動" />
+          <Slider label="h" paramKey="h" min={-180} max={180} step={1} descEn="Phase Shift" descZh="相位移動" />
           <Slider label="k" paramKey="k" min={-10} max={10} step={0.1} descEn="Vertical Shift" descZh="垂直平移" />
         </>
       )}

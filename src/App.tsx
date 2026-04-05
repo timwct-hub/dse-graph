@@ -23,11 +23,14 @@ export default function App() {
 
   const handleTypeChange = (type: GraphType) => {
     setGraphType(type);
+    let initialParams: Params;
     if (type === 'exponential' || type === 'logarithmic') {
-      setParams({ a: 2, b: 1, h: 0, k: 0, reflectX: false, reflectY: false });
+      initialParams = { a: 2, b: 1, h: 0, k: 0, reflectX: false, reflectY: false };
     } else {
-      setParams({ a: 1, b: 1, h: 0, k: 0, reflectX: false, reflectY: false });
+      initialParams = { a: 1, b: 1, h: 0, k: 0, reflectX: false, reflectY: false };
     }
+    setParams(initialParams);
+    setSavedGraphs([{ id: 'base', type, params: initialParams, color: '#94a3b8' }]);
     setIsMenuOpen(false);
   };
 

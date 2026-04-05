@@ -38,22 +38,59 @@ export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGra
     return () => observer.disconnect();
   }, []);
 
+  // Reset view when graph type changes
+  useEffect(() => {
+    const ratio = dimensions.height / dimensions.width || 1;
+    if (type === 'trigonometric') {
+      setBounds({ xMin: -360, xMax: 360, yMin: -5 * ratio, yMax: 5 * ratio });
+    } else {
+      setBounds({ xMin: -20, xMax: 20, yMin: -20 * ratio, yMax: 20 * ratio });
+    }
+  }, [type]);
+
   const { width: SVG_W, height: SVG_H } = dimensions;
 
   const mapX = (x: number) => ((x - bounds.xMin) / (bounds.xMax - bounds.xMin)) * SVG_W;
   const mapY = (y: number) => ((bounds.yMax - y) / (bounds.yMax - bounds.yMin)) * SVG_H;
 
+  const xRange = bounds.xMax - bounds.xMin;
+  const yRange = bounds.yMax - bounds.yMin;
+  
+  const getStep = (range: number, isDegree: boolean) => {
+    if (isDegree) {
+      if (range > 1440) return 180;
+      if (range > 720) return 90;
+      if (range > 360) return 45;
+      if (range > 180) return 30;
+      if (range > 90) return 15;
+    }
+    const mag = Math.pow(10, Math.floor(Math.log10(range)));
+    const norm = range / mag;
+    if (norm > 5) return mag;
+    if (norm > 2) return mag / 2;
+    return mag / 5;
+  };
+
+  const xStep = getStep(xRange, type === 'trigonometric');
+  const yStep = getStep(yRange, false);
+
   // Generate grid lines
   const gridLines = [];
-  const xStart = Math.floor(bounds.xMin);
-  const xEnd = Math.ceil(bounds.xMax);
-  for (let i = xStart; i <= xEnd; i++) {
-    gridLines.push(<line key={`v${i}`} x1={mapX(i)} x2={mapX(i)} y1={0} y2={SVG_H} stroke="#f1f5f9" strokeWidth={i === 0 ? 2 : 1} strokeDasharray={i !== 0 && i % 5 === 0 ? "4 4" : "none"} />);
+  const xStart = Math.floor(bounds.xMin / xStep) * xStep;
+  const xEnd = Math.ceil(bounds.xMax / xStep) * xStep;
+  for (let i = xStart; i <= xEnd; i += xStep) {
+    if (i > bounds.xMax + xStep) break;
+    const isZero = Math.abs(i) < xStep * 0.1;
+    const isMajor = isZero || Math.abs(i % (xStep * 5)) < xStep * 0.1;
+    gridLines.push(<line key={`v${i}`} x1={mapX(i)} x2={mapX(i)} y1={0} y2={SVG_H} stroke="#f1f5f9" strokeWidth={isZero ? 2 : 1} strokeDasharray={!isZero && !isMajor ? "4 4" : "none"} />);
   }
-  const yStart = Math.floor(bounds.yMin);
-  const yEnd = Math.ceil(bounds.yMax);
-  for (let i = yStart; i <= yEnd; i++) {
-    gridLines.push(<line key={`h${i}`} x1={0} x2={SVG_W} y1={mapY(i)} y2={mapY(i)} stroke="#f1f5f9" strokeWidth={i === 0 ? 2 : 1} strokeDasharray={i !== 0 && i % 5 === 0 ? "4 4" : "none"} />);
+  const yStart = Math.floor(bounds.yMin / yStep) * yStep;
+  const yEnd = Math.ceil(bounds.yMax / yStep) * yStep;
+  for (let i = yStart; i <= yEnd; i += yStep) {
+    if (i > bounds.yMax + yStep) break;
+    const isZero = Math.abs(i) < yStep * 0.1;
+    const isMajor = isZero || Math.abs(i % (yStep * 5)) < yStep * 0.1;
+    gridLines.push(<line key={`h${i}`} x1={0} x2={SVG_W} y1={mapY(i)} y2={mapY(i)} stroke="#f1f5f9" strokeWidth={isZero ? 2 : 1} strokeDasharray={!isZero && !isMajor ? "4 4" : "none"} />);
   }
 
   // Axes
@@ -64,8 +101,8 @@ export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGra
       {/* Labels */}
       <text x={SVG_W - 15} y={mapY(0) - 10} className="text-sm fill-gray-500 font-mono">x</text>
       <text x={mapX(0) + 10} y={15} className="text-sm fill-gray-500 font-mono">y</text>
-      <text x={mapX(1)} y={mapY(0) + 15} className="text-xs fill-gray-400 text-center" textAnchor="middle">1</text>
-      <text x={mapX(0) - 10} y={mapY(1) + 4} className="text-xs fill-gray-400 text-right" textAnchor="end">1</text>
+      <text x={mapX(xStep)} y={mapY(0) + 15} className="text-xs fill-gray-400 text-center" textAnchor="middle">{xStep}{type === 'trigonometric' ? '°' : ''}</text>
+      <text x={mapX(0) - 10} y={mapY(yStep) + 4} className="text-xs fill-gray-400 text-right" textAnchor="end">{yStep}</text>
     </>
   );
 
@@ -81,7 +118,7 @@ export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGra
       case 'quadratic': return x * x;
       case 'exponential': return Math.pow(2, x); // Base 2 for reference
       case 'logarithmic': return Math.log2(x);
-      case 'trigonometric': return Math.sin(x);
+      case 'trigonometric': return Math.sin(x * Math.PI / 180);
       default: return 0;
     }
   };
@@ -102,7 +139,9 @@ export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGra
         break;
       }
       case 'quadratic': {
-        y = a * Math.pow(x - h, 2) + k;
+        const effectiveX = reflectY ? -x : x;
+        const baseY = a * Math.pow(effectiveX - h, 2) + k;
+        y = reflectX ? -baseY : baseY;
         break;
       }
       case 'exponential': {
@@ -117,7 +156,7 @@ export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGra
         break;
       }
       case 'trigonometric': {
-        y = a * Math.sin(b * (x - h)) + k;
+        y = a * Math.sin(b * (x - h) * Math.PI / 180) + k;
         break;
       }
     }
@@ -152,7 +191,8 @@ export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGra
   const savedPaths = savedGraphs.map(graph => ({
     id: graph.id,
     color: graph.color,
-    path: generatePath((x) => getTransformedY(x, graph.type, graph.params))
+    path: generatePath((x) => getTransformedY(x, graph.type, graph.params)),
+    isBase: graph.id === 'base'
   }));
 
   // Asymptotes
@@ -262,9 +302,8 @@ export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGra
         {gridLines}
         {axes}
         {asymptotes}
-        <path d={basePath} fill="none" stroke="#cbd5e1" strokeWidth={3} strokeDasharray="8 4" />
         {savedPaths.map(sp => (
-          <path key={sp.id} d={sp.path} fill="none" stroke={sp.color} strokeWidth={2} opacity={0.8} />
+          <path key={sp.id} d={sp.path} fill="none" stroke={sp.color} strokeWidth={sp.isBase ? 3 : 2} strokeDasharray={sp.isBase ? "8 4" : "none"} opacity={0.8} />
         ))}
         <path d={transformedPath} fill="none" stroke="#2563eb" strokeWidth={3} />
         {keyPoint}
@@ -296,12 +335,13 @@ export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGra
           {savedGraphs.map(graph => (
             <div key={graph.id} className="flex items-center justify-between gap-2 bg-white/50 rounded p-1">
               <div className="flex items-center gap-1.5 min-w-0">
-                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: graph.color }}></div>
+                <div className={`w-2 h-2 rounded-full shrink-0 ${graph.id === 'base' ? 'border border-gray-400 border-dashed bg-transparent' : ''}`} style={{ backgroundColor: graph.id === 'base' ? 'transparent' : graph.color, borderColor: graph.id === 'base' ? graph.color : 'transparent' }}></div>
                 <div className="text-[10px] md:text-[11px] leading-tight break-words">
+                  {graph.id === 'base' ? <span className="font-semibold text-gray-500">Base: </span> : null}
                   <EquationDisplay type={graph.type} params={graph.params} />
                 </div>
               </div>
-              {onRemoveSavedGraph && (
+              {onRemoveSavedGraph && graph.id !== 'base' && (
                 <button onClick={() => onRemoveSavedGraph(graph.id)} className="text-gray-400 hover:text-red-500 p-0.5 shrink-0">
                   <X size={12} />
                 </button>
@@ -314,7 +354,7 @@ export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGra
       {/* Legend (Bottom Right) */}
       <div className="absolute z-10 bottom-2 right-12 md:bottom-4 md:right-4 bg-white/90 backdrop-blur px-2 py-1 md:px-3 md:py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col gap-1 text-[10px] md:text-xs pointer-events-none">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-0.5 bg-slate-300 border-t-2 border-dashed border-slate-300"></div>
+          <div className="w-4 h-0.5 bg-slate-400 border-t-2 border-dashed border-slate-400"></div>
           <span className="text-slate-600">Base</span>
         </div>
         <div className="flex items-center gap-2">
@@ -371,8 +411,13 @@ export function EquationDisplay({ type, params, className = "text-slate-800" }: 
   }
   
   if (type === 'quadratic') {
-    let inner = h === 0 ? <>x<sup>2</sup></> : <>(x {h > 0 ? '-' : '+'} {Math.abs(h)})<sup>2</sup></>;
-    return <span className={`font-mono font-semibold ${className}`}>y = {formatFactor(a)}{inner}{formatTerm(k)}</span>;
+    let innerX = reflectY ? '-x' : 'x';
+    let inner = h === 0 ? <>{innerX}<sup>2</sup></> : <>({innerX} {h > 0 ? '-' : '+'} {Math.abs(h)})<sup>2</sup></>;
+    let content = <>{formatFactor(a)}{inner}{formatTerm(k)}</>;
+    if (reflectX) {
+      content = <>-( {content} )</>;
+    }
+    return <span className={`font-mono font-semibold ${className}`}>y = {content}</span>;
   }
 
   if (type === 'exponential') {
@@ -386,7 +431,7 @@ export function EquationDisplay({ type, params, className = "text-slate-800" }: 
   }
 
   if (type === 'trigonometric') {
-    let inner = h === 0 ? 'x' : `x ${h > 0 ? '-' : '+'} ${Math.abs(h)}`;
+    let inner = h === 0 ? 'x' : `x ${h > 0 ? '-' : '+'} ${Math.abs(h)}°`;
     let bStr = b !== 1 ? b : '';
     let parens = '';
     if (h === 0) {
