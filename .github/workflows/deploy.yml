@@ -20,20 +20,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
       
       - name: Install dependencies
-        run: npm install
+        run: npm ci || npm install
       
       - name: Build
         run: npm run build
-        env:
-          # 如果需要 Gemini API Key
-          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
       
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          cname: dse-graph.worth-hk.com  # 自動保留你的自訂域名
+          cname: dse-graph.worth-hk.com

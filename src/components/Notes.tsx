@@ -68,7 +68,7 @@ export default function Notes({ type }: Props) {
   };
 
   return (
-    <div className="mt-6 bg-blue-50 p-4 rounded-lg border border-blue-100">
+    <div className="mt-6 bg-blue-50/80 lg:bg-blue-50 p-4 rounded-lg border border-blue-100/50 lg:border-blue-100">
       {notes[type]}
     </div>
   );

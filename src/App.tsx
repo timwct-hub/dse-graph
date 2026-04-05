@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Graph from './components/Graph';
+import Graph, { EquationDisplay } from './components/Graph';
 import Controls from './components/Controls';
 import Notes from './components/Notes';
 import { GraphType, Params, SavedGraph } from './types';
@@ -59,9 +59,8 @@ export default function App() {
       {/* Sidebar / Top Nav */}
       <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shadow-sm z-30 shrink-0">
         <div className="p-4 md:p-6 flex justify-between items-center md:block bg-white relative z-20">
-          <div>
-            <h1 className="text-lg md:text-xl font-bold text-blue-600 tracking-tight">HKDSE Graphs</h1>
-            <p className="text-xs text-slate-500 mt-1 hidden md:block">Transformations 1-Page Note</p>
+          <div className="text-lg md:text-xl font-bold tracking-tight bg-blue-50/50 px-3 py-1.5 rounded-lg border border-blue-100 inline-block">
+            <EquationDisplay type={graphType} params={params} className="text-blue-600" />
           </div>
           <button className="md:hidden p-2 text-gray-600 hover:bg-gray-100 rounded-lg" onClick={() => setIsMenuOpen(!isMenuOpen)}>
             {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -80,12 +79,12 @@ export default function App() {
       <div className="flex-1 flex flex-col overflow-hidden relative">
         <div className="flex-1 flex flex-col lg:flex-row p-0 md:p-6 gap-0 md:gap-6 overflow-hidden">
           {/* Graph Area */}
-          <div className="flex-1 bg-white md:rounded-xl shadow-sm md:border border-slate-200 p-2 sm:p-4 md:p-6 flex flex-col items-center justify-center relative h-full">
-             <Graph type={graphType} params={params} savedGraphs={savedGraphs} />
+          <div className="flex-1 bg-white md:rounded-xl shadow-sm md:border border-slate-200 p-0 md:p-6 flex flex-col items-center justify-center relative h-full">
+             <Graph type={graphType} params={params} savedGraphs={savedGraphs} onRemoveSavedGraph={removeSavedGraph} />
              
              {/* Mobile Floating Button */}
              <button 
-               className="lg:hidden absolute bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl z-20 hover:bg-blue-700 transition-colors flex items-center justify-center"
+               className={`lg:hidden fixed bottom-6 right-6 bg-blue-600 text-white p-4 rounded-full shadow-xl z-20 hover:bg-blue-700 transition-all duration-300 flex items-center justify-center ${isControlsOpen ? 'scale-0 opacity-0' : 'scale-100 opacity-100'}`}
                onClick={() => setIsControlsOpen(true)}
              >
                <Settings2 size={24} />
@@ -93,23 +92,18 @@ export default function App() {
           </div>
 
           {/* Controls Area */}
-          {isControlsOpen && (
-            <div className="lg:hidden fixed inset-0 bg-black/20 z-30 backdrop-blur-sm" onClick={() => setIsControlsOpen(false)} />
-          )}
           <div className={`
-            ${isControlsOpen ? 'flex' : 'hidden'} lg:flex
-            fixed lg:relative bottom-0 left-0 right-0 lg:bottom-auto lg:left-auto lg:right-auto
+            fixed lg:relative inset-0 lg:inset-auto
             w-full lg:w-[340px] 
-            max-h-[85vh] lg:max-h-none
-            bg-white lg:rounded-xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] lg:shadow-sm border-t lg:border border-slate-200 
-            p-4 md:p-6 flex-col overflow-y-auto shrink-0 z-40
-            rounded-t-3xl lg:rounded-t-xl
-            transition-transform duration-300
+            h-full lg:h-auto lg:max-h-none
+            bg-white/60 lg:bg-white lg:rounded-xl shadow-[0_-15px_40px_rgba(0,0,0,0.15)] lg:shadow-sm border-t lg:border border-slate-200 
+            p-4 md:p-6 flex flex-col overflow-y-auto shrink-0 z-40
+            transition-transform duration-300 ease-in-out
+            ${isControlsOpen ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'}
           `}>
-             <div className="flex justify-between items-center lg:hidden mb-2 pb-2">
-               <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-3"></div>
-               <h2 className="font-bold text-gray-800 mt-4">Controls</h2>
-               <button onClick={() => setIsControlsOpen(false)} className="p-2 text-gray-500 hover:bg-gray-100 rounded-full mt-2"><X size={20}/></button>
+             <div className="flex justify-between items-center lg:hidden mb-4 pb-2 sticky top-0 bg-transparent z-10 pt-4">
+               <h2 className="font-bold text-gray-800 text-lg drop-shadow-md">Controls</h2>
+               <button onClick={() => setIsControlsOpen(false)} className="p-2 text-gray-800 hover:bg-white/80 rounded-full bg-white/60"><X size={24}/></button>
              </div>
              <Controls 
                type={graphType} 

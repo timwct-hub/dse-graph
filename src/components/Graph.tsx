@@ -1,33 +1,68 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GraphType, Params, SavedGraph } from '../types';
-
-const SVG_SIZE = 600;
-const RANGE = 10; // -10 to 10
-
-const mapX = (x: number) => ((x + RANGE) / (RANGE * 2)) * SVG_SIZE;
-const mapY = (y: number) => ((RANGE - y) / (RANGE * 2)) * SVG_SIZE;
+import { X, ZoomIn, ZoomOut, RefreshCcw, ArrowUp, ArrowDown, ArrowLeft, ArrowRight } from 'lucide-react';
 
 interface Props {
   type: GraphType;
   params: Params;
   savedGraphs?: SavedGraph[];
+  onRemoveSavedGraph?: (id: string) => void;
 }
 
-export default function Graph({ type, params, savedGraphs = [] }: Props) {
+export default function Graph({ type, params, savedGraphs = [], onRemoveSavedGraph }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 600, height: 600 });
+  const [bounds, setBounds] = useState({ xMin: -20, xMax: 20, yMin: -20, yMax: 20 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [lastPt, setLastPt] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver(entries => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setDimensions({ width, height });
+          // Adjust bounds to maintain aspect ratio based on width
+          setBounds(b => {
+            const currentW = b.xMax - b.xMin;
+            const currentH = b.yMax - b.yMin;
+            const targetH = currentW * (height / width);
+            const cy = (b.yMin + b.yMax) / 2;
+            return { ...b, yMin: cy - targetH / 2, yMax: cy + targetH / 2 };
+          });
+        }
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const { width: SVG_W, height: SVG_H } = dimensions;
+
+  const mapX = (x: number) => ((x - bounds.xMin) / (bounds.xMax - bounds.xMin)) * SVG_W;
+  const mapY = (y: number) => ((bounds.yMax - y) / (bounds.yMax - bounds.yMin)) * SVG_H;
+
   // Generate grid lines
   const gridLines = [];
-  for (let i = -RANGE; i <= RANGE; i++) {
-    gridLines.push(<line key={`v${i}`} x1={mapX(i)} x2={mapX(i)} y1={0} y2={SVG_SIZE} stroke="#f1f5f9" strokeWidth={i === 0 ? 2 : 1} strokeDasharray={i !== 0 && i % 5 === 0 ? "4 4" : "none"} />);
-    gridLines.push(<line key={`h${i}`} x1={0} x2={SVG_SIZE} y1={mapY(i)} y2={mapY(i)} stroke="#f1f5f9" strokeWidth={i === 0 ? 2 : 1} strokeDasharray={i !== 0 && i % 5 === 0 ? "4 4" : "none"} />);
+  const xStart = Math.floor(bounds.xMin);
+  const xEnd = Math.ceil(bounds.xMax);
+  for (let i = xStart; i <= xEnd; i++) {
+    gridLines.push(<line key={`v${i}`} x1={mapX(i)} x2={mapX(i)} y1={0} y2={SVG_H} stroke="#f1f5f9" strokeWidth={i === 0 ? 2 : 1} strokeDasharray={i !== 0 && i % 5 === 0 ? "4 4" : "none"} />);
+  }
+  const yStart = Math.floor(bounds.yMin);
+  const yEnd = Math.ceil(bounds.yMax);
+  for (let i = yStart; i <= yEnd; i++) {
+    gridLines.push(<line key={`h${i}`} x1={0} x2={SVG_W} y1={mapY(i)} y2={mapY(i)} stroke="#f1f5f9" strokeWidth={i === 0 ? 2 : 1} strokeDasharray={i !== 0 && i % 5 === 0 ? "4 4" : "none"} />);
   }
 
   // Axes
   const axes = (
     <>
-      <line x1={0} x2={SVG_SIZE} y1={mapY(0)} y2={mapY(0)} stroke="#94a3b8" strokeWidth={2} />
-      <line x1={mapX(0)} x2={mapX(0)} y1={0} y2={SVG_SIZE} stroke="#94a3b8" strokeWidth={2} />
+      <line x1={0} x2={SVG_W} y1={mapY(0)} y2={mapY(0)} stroke="#94a3b8" strokeWidth={2} />
+      <line x1={mapX(0)} x2={mapX(0)} y1={0} y2={SVG_H} stroke="#94a3b8" strokeWidth={2} />
       {/* Labels */}
-      <text x={SVG_SIZE - 15} y={mapY(0) - 10} className="text-sm fill-gray-500 font-mono">x</text>
+      <text x={SVG_W - 15} y={mapY(0) - 10} className="text-sm fill-gray-500 font-mono">x</text>
       <text x={mapX(0) + 10} y={15} className="text-sm fill-gray-500 font-mono">y</text>
       <text x={mapX(1)} y={mapY(0) + 15} className="text-xs fill-gray-400 text-center" textAnchor="middle">1</text>
       <text x={mapX(0) - 10} y={mapY(1) + 4} className="text-xs fill-gray-400 text-right" textAnchor="end">1</text>
@@ -92,10 +127,10 @@ export default function Graph({ type, params, savedGraphs = [] }: Props) {
   const generatePath = (fn: (x: number) => number) => {
     let path = '';
     let first = true;
-    const step = 0.05;
-    for (let x = -RANGE; x <= RANGE; x += step) {
+    const step = (bounds.xMax - bounds.xMin) / 400;
+    for (let x = bounds.xMin; x <= bounds.xMax; x += step) {
       const y = fn(x);
-      if (isNaN(y) || !isFinite(y) || y > RANGE * 2 || y < -RANGE * 2) {
+      if (isNaN(y) || !isFinite(y) || y > bounds.yMax + (bounds.yMax - bounds.yMin) || y < bounds.yMin - (bounds.yMax - bounds.yMin)) {
         first = true;
         continue;
       }
@@ -124,10 +159,10 @@ export default function Graph({ type, params, savedGraphs = [] }: Props) {
   let asymptotes = null;
   if (type === 'exponential') {
     const yAsymp = mapY(params.k);
-    asymptotes = <line x1={0} x2={SVG_SIZE} y1={yAsymp} y2={yAsymp} stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" />;
+    asymptotes = <line x1={0} x2={SVG_W} y1={yAsymp} y2={yAsymp} stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" />;
   } else if (type === 'logarithmic') {
     const xAsymp = mapX(params.h);
-    asymptotes = <line x1={xAsymp} x2={xAsymp} y1={0} y2={SVG_SIZE} stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" />;
+    asymptotes = <line x1={xAsymp} x2={xAsymp} y1={0} y2={SVG_H} stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" />;
   }
 
   // Vertex / Fixed Point
@@ -140,9 +175,90 @@ export default function Graph({ type, params, savedGraphs = [] }: Props) {
     keyPoint = <circle cx={mapX(1 + params.h)} cy={mapY(params.k)} r={5} fill="#2563eb" />;
   }
 
+  // Pan & Zoom Handlers
+  const handlePointerDown = (e: React.PointerEvent) => {
+    setIsDragging(true);
+    setLastPt({ x: e.clientX, y: e.clientY });
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const dx = e.clientX - lastPt.x;
+    const dy = e.clientY - lastPt.y;
+    const mathDx = dx * ((bounds.xMax - bounds.xMin) / SVG_W);
+    const mathDy = dy * ((bounds.yMax - bounds.yMin) / SVG_H);
+    setBounds(b => ({
+      xMin: b.xMin - mathDx,
+      xMax: b.xMax - mathDx,
+      yMin: b.yMin + mathDy,
+      yMax: b.yMax + mathDy
+    }));
+    setLastPt({ x: e.clientX, y: e.clientY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    setIsDragging(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    const zoom = e.deltaY > 0 ? 1.1 : 0.9;
+    setBounds(b => {
+      const cx = (b.xMin + b.xMax) / 2;
+      const cy = (b.yMin + b.yMax) / 2;
+      const w = (b.xMax - b.xMin) * zoom;
+      const h = (b.yMax - b.yMin) * zoom;
+      return { xMin: cx - w/2, xMax: cx + w/2, yMin: cy - h/2, yMax: cy + h/2 };
+    });
+  };
+
+  const zoomIn = () => setBounds(b => {
+    const cx = (b.xMin + b.xMax) / 2;
+    const cy = (b.yMin + b.yMax) / 2;
+    const w = (b.xMax - b.xMin) * 0.8;
+    const h = (b.yMax - b.yMin) * 0.8;
+    return { xMin: cx - w/2, xMax: cx + w/2, yMin: cy - h/2, yMax: cy + h/2 };
+  });
+
+  const zoomOut = () => setBounds(b => {
+    const cx = (b.xMin + b.xMax) / 2;
+    const cy = (b.yMin + b.yMax) / 2;
+    const w = (b.xMax - b.xMin) * 1.2;
+    const h = (b.yMax - b.yMin) * 1.2;
+    return { xMin: cx - w/2, xMax: cx + w/2, yMin: cy - h/2, yMax: cy + h/2 };
+  });
+
+  const resetView = () => {
+    const ratio = SVG_H / SVG_W;
+    setBounds({ xMin: -20, xMax: 20, yMin: -20 * ratio, yMax: 20 * ratio });
+  };
+
+  const pan = (dx: number, dy: number) => setBounds(b => {
+    const w = b.xMax - b.xMin;
+    const h = b.yMax - b.yMin;
+    return {
+      xMin: b.xMin + dx * w * 0.1,
+      xMax: b.xMax + dx * w * 0.1,
+      yMin: b.yMin + dy * h * 0.1,
+      yMax: b.yMax + dy * h * 0.1
+    };
+  });
+
   return (
-    <div className="relative w-full max-w-[600px] aspect-square">
-      <svg width="100%" height="100%" viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} className="bg-white rounded-lg">
+    <div ref={containerRef} className="relative w-full h-full">
+      <svg 
+        width="100%" 
+        height="100%" 
+        viewBox={`0 0 ${SVG_W} ${SVG_H}`} 
+        preserveAspectRatio="none" 
+        className="bg-white rounded-lg touch-none cursor-move"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onWheel={handleWheel}
+      >
         {gridLines}
         {axes}
         {asymptotes}
@@ -153,26 +269,62 @@ export default function Graph({ type, params, savedGraphs = [] }: Props) {
         <path d={transformedPath} fill="none" stroke="#2563eb" strokeWidth={3} />
         {keyPoint}
       </svg>
-      
-      {/* Equation Display Overlay */}
-      <div className="absolute top-2 left-2 md:top-4 md:left-4 bg-white/90 backdrop-blur px-2 py-1 md:px-4 md:py-2 rounded-lg shadow-sm border border-gray-200 scale-75 md:scale-100 origin-top-left">
-        <EquationDisplay type={type} params={params} />
+
+      {/* View Controls (Top Right) */}
+      <div className="absolute z-10 top-2 right-2 md:top-4 md:right-4 bg-white/90 backdrop-blur p-1 rounded-lg shadow-sm border border-gray-200 flex flex-col gap-1">
+        <button onClick={zoomIn} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Zoom In"><ZoomIn size={16} /></button>
+        <button onClick={zoomOut} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Zoom Out"><ZoomOut size={16} /></button>
+        <button onClick={resetView} className="p-1.5 text-gray-600 hover:bg-gray-100 rounded" title="Reset View"><RefreshCcw size={16} /></button>
+        <div className="h-px bg-gray-200 my-1"></div>
+        <div className="grid grid-cols-3 gap-0.5">
+          <div></div>
+          <button onClick={() => pan(0, 1)} className="p-1 text-gray-600 hover:bg-gray-100 rounded flex justify-center"><ArrowUp size={14} /></button>
+          <div></div>
+          <button onClick={() => pan(-1, 0)} className="p-1 text-gray-600 hover:bg-gray-100 rounded flex justify-center"><ArrowLeft size={14} /></button>
+          <div></div>
+          <button onClick={() => pan(1, 0)} className="p-1 text-gray-600 hover:bg-gray-100 rounded flex justify-center"><ArrowRight size={14} /></button>
+          <div></div>
+          <button onClick={() => pan(0, -1)} className="p-1 text-gray-600 hover:bg-gray-100 rounded flex justify-center"><ArrowDown size={14} /></button>
+          <div></div>
+        </div>
       </div>
+
+      {/* Saved Graphs Overlay (Bottom Left) */}
+      {savedGraphs && savedGraphs.length > 0 && (
+        <div className="absolute z-10 bottom-2 left-2 md:bottom-4 md:left-4 bg-white/90 backdrop-blur p-2 rounded-lg shadow-sm border border-gray-200 flex flex-col gap-1.5 max-h-[40%] overflow-y-auto w-auto max-w-[280px] md:max-w-[320px] scrollbar-hide pointer-events-auto">
+          <div className="text-[10px] md:text-xs font-bold text-gray-700 mb-0.5">Saved Graphs</div>
+          {savedGraphs.map(graph => (
+            <div key={graph.id} className="flex items-center justify-between gap-2 bg-white/50 rounded p-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: graph.color }}></div>
+                <div className="text-[10px] md:text-[11px] leading-tight break-words">
+                  <EquationDisplay type={graph.type} params={graph.params} />
+                </div>
+              </div>
+              {onRemoveSavedGraph && (
+                <button onClick={() => onRemoveSavedGraph(graph.id)} className="text-gray-400 hover:text-red-500 p-0.5 shrink-0">
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       
-      {/* Legend */}
-      <div className="absolute bottom-2 right-2 md:bottom-4 md:right-4 bg-white/90 backdrop-blur px-2 py-1 md:px-3 md:py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col gap-1 text-[10px] md:text-xs">
+      {/* Legend (Bottom Right) */}
+      <div className="absolute z-10 bottom-2 right-12 md:bottom-4 md:right-4 bg-white/90 backdrop-blur px-2 py-1 md:px-3 md:py-2 rounded-lg shadow-sm border border-gray-200 flex flex-col gap-1 text-[10px] md:text-xs pointer-events-none">
         <div className="flex items-center gap-2">
           <div className="w-4 h-0.5 bg-slate-300 border-t-2 border-dashed border-slate-300"></div>
-          <span className="text-slate-600">Base 原始圖表</span>
+          <span className="text-slate-600">Base</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-4 h-0.5 bg-blue-600"></div>
-          <span className="text-slate-600">Transformed 變化後</span>
+          <span className="text-slate-600">Transformed</span>
         </div>
         {(type === 'exponential' || type === 'logarithmic') && (
           <div className="flex items-center gap-2">
             <div className="w-4 h-0.5 bg-red-500 border-t-2 border-dashed border-red-500"></div>
-            <span className="text-slate-600">Asymptote 漸近線</span>
+            <span className="text-slate-600">Asymptote</span>
           </div>
         )}
       </div>
@@ -180,7 +332,7 @@ export default function Graph({ type, params, savedGraphs = [] }: Props) {
   );
 }
 
-export function EquationDisplay({ type, params }: { type: GraphType, params: Params }) {
+export function EquationDisplay({ type, params, className = "text-slate-800" }: { type: GraphType, params: Params, className?: string }) {
   const { a, b, h, k, reflectX, reflectY } = params;
   
   const formatTerm = (val: number, isFirst: boolean = false) => {
@@ -215,22 +367,22 @@ export function EquationDisplay({ type, params }: { type: GraphType, params: Par
       }
     }
     
-    return <span className="font-mono text-lg font-semibold text-slate-800">y = {sign}{aStr}f({fullInner}){formatTerm(k)}</span>;
+    return <span className={`font-mono font-semibold ${className}`}>y = {sign}{aStr}f({fullInner}){formatTerm(k)}</span>;
   }
   
   if (type === 'quadratic') {
     let inner = h === 0 ? <>x<sup>2</sup></> : <>(x {h > 0 ? '-' : '+'} {Math.abs(h)})<sup>2</sup></>;
-    return <span className="font-mono text-lg font-semibold text-slate-800">y = {formatFactor(a)}{inner}{formatTerm(k)}</span>;
+    return <span className={`font-mono font-semibold ${className}`}>y = {formatFactor(a)}{inner}{formatTerm(k)}</span>;
   }
 
   if (type === 'exponential') {
     let inner = h === 0 ? 'x' : `x ${h > 0 ? '-' : '+'} ${Math.abs(h)}`;
-    return <span className="font-mono text-lg font-semibold text-slate-800">y = {a}<sup>{inner}</sup>{formatTerm(k)}</span>;
+    return <span className={`font-mono font-semibold ${className}`}>y = {a}<sup>{inner}</sup>{formatTerm(k)}</span>;
   }
 
   if (type === 'logarithmic') {
     let inner = h === 0 ? 'x' : `x ${h > 0 ? '-' : '+'} ${Math.abs(h)}`;
-    return <span className="font-mono text-lg font-semibold text-slate-800">y = log<sub>{a}</sub>({inner}){formatTerm(k)}</span>;
+    return <span className={`font-mono font-semibold ${className}`}>y = log<sub>{a}</sub>({inner}){formatTerm(k)}</span>;
   }
 
   if (type === 'trigonometric') {
@@ -242,8 +394,8 @@ export function EquationDisplay({ type, params }: { type: GraphType, params: Par
     } else {
       parens = b === 1 ? `(${inner})` : `(${bStr}(${inner}))`;
     }
-    return <span className="font-mono text-lg font-semibold text-slate-800">y = {formatFactor(a)}sin{parens}{formatTerm(k)}</span>;
+    return <span className={`font-mono font-semibold ${className}`}>y = {formatFactor(a)}sin{parens}{formatTerm(k)}</span>;
   }
 
-  return <span>y = f(x)</span>;
+  return <span className={`font-mono font-semibold ${className}`}>y = f(x)</span>;
 }
